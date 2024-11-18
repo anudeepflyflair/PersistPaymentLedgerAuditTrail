@@ -1,7 +1,7 @@
 # Record all payment transaction details securely in the PaymentLedger DynamoDB
 
 resource "aws_dynamodb_table" "payment_ledger" {
-  name           = "${var.dynamodb_table_name}Ledger"
+  name           = "${var.dynamodb_table_name}-Ledger"
   billing_mode   = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
@@ -124,7 +124,7 @@ resource "aws_dynamodb_table" "payment_ledger" {
 # Maintain a log of every access and update to the PaymentLedger for compliance and traceability.
 
 resource "aws_dynamodb_table" "payment_audit_trail" {
-  name           = "${var.dynamodb_table_name}AuditTrail"
+  name           = "${var.dynamodb_table_name}-AuditTrail"
   billing_mode   = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
