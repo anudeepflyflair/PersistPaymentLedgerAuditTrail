@@ -5,7 +5,7 @@ data "aws_caller_identity" "current" {}
 data "aws_subnet" "private_subnet" {
   filter {
     name   = "tag:Name"
-    values = ["PaymentGateway-pvt-subnet"] # Replace with the tag of your private subnet
+    values = ["audit-infra-PrivateSubnet"] # Replace with the tag of your private subnet
   }
 }
 
@@ -13,6 +13,6 @@ data "aws_subnet" "private_subnet" {
 data "aws_security_group" "private_sg" {
   filter {
     name   = "tag:Name"
-    values = ["PaymentGateway-pvt-sg"] # Replace with the tag of your Lambda security group
+    values = ["audit-infra-DynamoDBEndpointSG"] # Replace with the tag of your Lambda security group
   }
 }
