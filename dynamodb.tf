@@ -1,5 +1,5 @@
 resource "aws_dynamodb_table" "payment_ledger" {
-  name           = "${var.dynamodb_table_name}Ledger"
+  name           = "${var.dynamodb_table_name}-Ledger"
   billing_mode   = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
@@ -87,7 +87,7 @@ resource "aws_dynamodb_table" "payment_ledger" {
 }
 
 resource "aws_dynamodb_table" "payment_audit_trail" {
-  name           = "${var.dynamodb_table_name}AuditTrail"
+  name           = "${var.dynamodb_table_name}-AuditTrail"
   billing_mode   = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
