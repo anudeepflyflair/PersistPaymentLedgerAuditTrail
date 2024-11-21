@@ -1,7 +1,5 @@
-# Record all payment transaction details securely in the PaymentLedger DynamoDB
-
 resource "aws_dynamodb_table" "payment_ledger" {
-  name           = "${var.dynamodb_table_name}-Ledger"
+  name           = "${var.dynamodb_table_name}Ledger"
   billing_mode   = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
@@ -18,18 +16,8 @@ resource "aws_dynamodb_table" "payment_ledger" {
   }
 
   attribute {
-    name = "SecureToken"
-    type = "S"
-  }
-
-  attribute {
     name = "Amount"
     type = "N"
-  }
-
-  attribute {
-    name = "ProcessorID"
-    type = "S"
   }
 
   attribute {
@@ -43,16 +31,16 @@ resource "aws_dynamodb_table" "payment_ledger" {
   }
 
   attribute {
-    name = "PaymentProcessor"
-    type = "S"
+    name = "OriginalTransactionID"
+    type = "S" # Reference to the original transaction for voids
   }
 
   attribute {
-    name = "Metadata"
-    type = "S" # Stored as a string (JSON string)
+    name = "Reason"
+    type = "S" # Reason for the void/reversal
   }
 
-  # Add Global Secondary Index for Amount
+  # Global Secondary Indexes for querying by attributes that need indexing
   global_secondary_index {
     name            = "Amount-index"
     hash_key        = "Amount"
@@ -61,25 +49,6 @@ resource "aws_dynamodb_table" "payment_ledger" {
     write_capacity  = 5
   }
 
-  # Add Global Secondary Index for SecureToken
-  global_secondary_index {
-    name            = "SecureToken-index"
-    hash_key        = "SecureToken"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
-  }
-
-  # Add Global Secondary Index for ProcessorID
-  global_secondary_index {
-    name            = "ProcessorID-index"
-    hash_key        = "ProcessorID"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
-  }
-
-  # Add Global Secondary Index for Status
   global_secondary_index {
     name            = "Status-index"
     hash_key        = "Status"
@@ -88,7 +57,6 @@ resource "aws_dynamodb_table" "payment_ledger" {
     write_capacity  = 5
   }
 
-  # Add Global Secondary Index for Timestamp
   global_secondary_index {
     name            = "Timestamp-index"
     hash_key        = "Timestamp"
@@ -97,19 +65,17 @@ resource "aws_dynamodb_table" "payment_ledger" {
     write_capacity  = 5
   }
 
-  # Add Global Secondary Index for PaymentProcessor
   global_secondary_index {
-    name            = "PaymentProcessor-index"
-    hash_key        = "PaymentProcessor"
+    name            = "OriginalTransactionID-index"
+    hash_key        = "OriginalTransactionID"
     projection_type = "ALL"
     read_capacity   = 5
     write_capacity  = 5
   }
 
-  # Add Global Secondary Index for Metadata (if you need to query it)
   global_secondary_index {
-    name            = "Metadata-index"
-    hash_key        = "Metadata"
+    name            = "Reason-index"
+    hash_key        = "Reason"
     projection_type = "ALL"
     read_capacity   = 5
     write_capacity  = 5
@@ -120,11 +86,8 @@ resource "aws_dynamodb_table" "payment_ledger" {
   }
 }
 
-
-# Maintain a log of every access and update to the PaymentLedger for compliance and traceability.
-
 resource "aws_dynamodb_table" "payment_audit_trail" {
-  name           = "${var.dynamodb_table_name}-AuditTrail"
+  name           = "${var.dynamodb_table_name}AuditTrail"
   billing_mode   = "PROVISIONED"
   read_capacity  = 5
   write_capacity = 5
@@ -169,6 +132,16 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
   attribute {
     name = "Response"
     type = "S"
+  }
+
+  attribute {
+    name = "VoidTransactionID"
+    type = "S" # Index this attribute if you need to query by it
+  }
+
+  attribute {
+    name = "Reason"
+    type = "S" # Index this attribute if you need to query by it
   }
 
   # Global Secondary Indexes (GSI)
@@ -220,7 +193,24 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
     write_capacity  = 5
   }
 
+  # Add GSIs for newly added attributes
+  global_secondary_index {
+    name            = "VoidTransactionID-Index"
+    hash_key        = "VoidTransactionID"
+    projection_type = "ALL"
+    read_capacity   = 5
+    write_capacity  = 5
+  }
+
+  global_secondary_index {
+    name            = "Reason-Index"
+    hash_key        = "Reason"
+    projection_type = "ALL"
+    read_capacity   = 5
+    write_capacity  = 5
+  }
+
   tags = {
-    Name = "${var.dynamodb_table_name}AuditTrail"
+    Name = "${var.dynamodb_table_name}-audit-trail"
   }
 }
