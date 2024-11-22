@@ -10,6 +10,7 @@ resource "aws_dynamodb_table" "payment_ledger" {
   }
 
   hash_key = "TransactionID"
+
   attribute {
     name = "TransactionID"
     type = "S"
@@ -18,6 +19,11 @@ resource "aws_dynamodb_table" "payment_ledger" {
   attribute {
     name = "Amount"
     type = "N"
+  }
+
+  attribute {
+    name = "Source"
+    type = "S"  # Added Source attribute
   }
 
   attribute {
@@ -44,6 +50,14 @@ resource "aws_dynamodb_table" "payment_ledger" {
   global_secondary_index {
     name            = "Amount-index"
     hash_key        = "Amount"
+    projection_type = "ALL"
+    read_capacity   = 5
+    write_capacity  = 5
+  }
+
+  global_secondary_index {
+    name            = "Source-index"
+    hash_key        = "Source"  # Index for Source
     projection_type = "ALL"
     read_capacity   = 5
     write_capacity  = 5
@@ -85,7 +99,6 @@ resource "aws_dynamodb_table" "payment_ledger" {
     Name = "${var.dynamodb_table_name}-ledger"
   }
 }
-
 resource "aws_dynamodb_table" "payment_audit_trail" {
   name           = "${var.dynamodb_table_name}-AuditTrail"
   billing_mode   = "PROVISIONED"
@@ -144,6 +157,11 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
     type = "S" # Index this attribute if you need to query by it
   }
 
+  attribute {
+    name = "Source"
+    type = "S"  # Added Source attribute
+  }
+
   # Global Secondary Indexes (GSI)
   global_secondary_index {
     name            = "TransactionID-Index"
@@ -193,7 +211,6 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
     write_capacity  = 5
   }
 
-  # Add GSIs for newly added attributes
   global_secondary_index {
     name            = "VoidTransactionID-Index"
     hash_key        = "VoidTransactionID"
@@ -205,6 +222,14 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
   global_secondary_index {
     name            = "Reason-Index"
     hash_key        = "Reason"
+    projection_type = "ALL"
+    read_capacity   = 5
+    write_capacity  = 5
+  }
+
+  global_secondary_index {
+    name            = "Source-Index"
+    hash_key        = "Source"  # Index for Source
     projection_type = "ALL"
     read_capacity   = 5
     write_capacity  = 5

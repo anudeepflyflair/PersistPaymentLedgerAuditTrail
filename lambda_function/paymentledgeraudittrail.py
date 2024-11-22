@@ -36,7 +36,7 @@ def encrypt_token(token):
         raise Exception(f"Error encrypting token: {e.response['Error']['Message']}")
 
 # Step 1: Persist Payment Ledger Entry
-def persist_payment_ledger(amount, processor_id):
+def persist_payment_ledger(amount, processor_id, source):
     transaction_id = str(uuid.uuid4())
     status = "Initiated"
     try:
@@ -46,10 +46,11 @@ def persist_payment_ledger(amount, processor_id):
                 'Amount': amount,
                 'ProcessorID': processor_id,
                 'Status': status,
+                'Source': source,  # Include source in the ledger entry
                 'Timestamp': str(datetime.utcnow())
             }
         )
-        logger.info(f"Payment ledger entry created for transaction {transaction_id}")
+        logger.info(f"Payment ledger entry created for transaction {transaction_id} from source {source}")
         return transaction_id
     except ClientError as e:
         logger.error(f"Error storing payment initiation: {e.response['Error']['Message']}")
@@ -88,7 +89,7 @@ def normalize_processor_response(response):
         return 'pending'
 
 # Step 5: Persist Audit Trail
-def persist_payment_audit_trail(transaction_id, query_details, response_data):
+def persist_payment_audit_trail(transaction_id, query_details, response_data, source):
     try:
         audit_id = str(uuid.uuid4())
         audit_table.put_item(
@@ -97,25 +98,26 @@ def persist_payment_audit_trail(transaction_id, query_details, response_data):
                 'TransactionID': transaction_id,
                 'QueryDetails': query_details,
                 'ResponseData': response_data,
+                'Source': source,  # Include source in the audit trail
                 'Timestamp': str(datetime.now(timezone.utc))
             }
         )
-        logger.info(f"Audit trail created for transaction {transaction_id}")
+        logger.info(f"Audit trail created for transaction {transaction_id} from source {source}")
     except ClientError as e:
         logger.error(f"Error creating audit trail: {e.response['Error']['Message']}")
         raise Exception(f"Error creating audit trail: {e.response['Error']['Message']}")
 
 # Step 6: Process Payment Response
-def process_payment_response(transaction_id, amount, processor_id, processor_response):
+def process_payment_response(transaction_id, amount, processor_id, processor_response, source):
     normalized_status = normalize_processor_response(processor_response)
-    query_details = f"Payment processed for amount: {amount} using processor: {processor_id}"
+    query_details = f"Payment processed for amount: {amount} using processor: {processor_id} from source: {source}"
     response_data = f"Processor response: {processor_response}"
-
+    
     try:
         # Handle statuses
         if normalized_status == 'success':
             update_payment_status(transaction_id, "Success")
-            persist_payment_audit_trail(transaction_id, query_details, response_data)
+            persist_payment_audit_trail(transaction_id, query_details, response_data, source)
             return {
                 'statusCode': 200,
                 'body': f"Payment succeeded for transaction {transaction_id}"
@@ -123,15 +125,15 @@ def process_payment_response(transaction_id, amount, processor_id, processor_res
 
         elif normalized_status == 'completed':
             update_payment_status(transaction_id, "Completed")
-            persist_payment_audit_trail(transaction_id, query_details, response_data)
+            persist_payment_audit_trail(transaction_id, query_details, response_data, source)
             return {
                 'statusCode': 200,
-                'body': f"Payment completd for transaction {transaction_id}"
+                'body': f"Payment completed for transaction {transaction_id}"
             }
 
         elif normalized_status == 'failed':
             update_payment_status(transaction_id, "Failed")
-            persist_payment_audit_trail(transaction_id, query_details, response_data)
+            persist_payment_audit_trail(transaction_id, query_details, response_data, source)
             return {
                 'statusCode': 400,
                 'body': f"Payment failed for transaction {transaction_id}"
@@ -139,7 +141,7 @@ def process_payment_response(transaction_id, amount, processor_id, processor_res
 
         elif normalized_status == 'pending':
             update_payment_status(transaction_id, "Pending")
-            persist_payment_audit_trail(transaction_id, query_details, response_data)
+            persist_payment_audit_trail(transaction_id, query_details, response_data, source)
             return {
                 'statusCode': 202,
                 'body': f"Payment is pending for transaction {transaction_id}"
@@ -155,10 +157,11 @@ def lambda_handler(event, context):
         # Extract and validate input
         amount = Decimal(str(event['amount']))
         processor_id = event['processor_id']
+        source = event.get('source', 'unknown')  # Capture source from event, default to 'unknown'
         simulate_status = event.get('simulate_status', '').lower()
 
         # Step 1: Persist the payment ledger entry
-        transaction_id = persist_payment_ledger(amount, processor_id)
+        transaction_id = persist_payment_ledger(amount, processor_id, source)
 
         # Step 2: Create a secure token
         encrypted_token = create_secure_token(amount, processor_id)
@@ -172,7 +175,7 @@ def lambda_handler(event, context):
         }
 
         # Step 4: Process the simulated payment response
-        return process_payment_response(transaction_id, amount, processor_id, processor_response)
+        return process_payment_response(transaction_id, amount, processor_id, processor_response, source)
 
     except Exception as e:
         logger.error(f"Error in payment processing flow: {str(e)}")
