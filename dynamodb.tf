@@ -1,241 +1,199 @@
+# payment_ledger
 resource "aws_dynamodb_table" "payment_ledger" {
   name           = "${var.dynamodb_table_name}-Ledger"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 5
-  write_capacity = 5
-
-  # Enable Point-in-Time Recovery (PITR)
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  hash_key = "TransactionID"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "transaction_id"
+  range_key      = "process_type"
 
   attribute {
-    name = "TransactionID"
+    name = "transaction_id"
     type = "S"
   }
 
   attribute {
-    name = "Amount"
-    type = "N"
-  }
-
-  attribute {
-    name = "Source"
-    type = "S"  # Added Source attribute
-  }
-
-  attribute {
-    name = "Status"
+    name = "process_type"
     type = "S"
   }
 
   attribute {
-    name = "Timestamp"
+    name = "payment_processor"
     type = "S"
   }
 
   attribute {
-    name = "OriginalTransactionID"
-    type = "S" # Reference to the original transaction for voids
+    name = "merchant_id"
+    type = "S"
   }
 
   attribute {
-    name = "Reason"
-    type = "S" # Reason for the void/reversal
+    name = "timestamp"
+    type = "S"
   }
 
-  # Global Secondary Indexes for querying by attributes that need indexing
-  global_secondary_index {
-    name            = "Amount-index"
-    hash_key        = "Amount"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+  attribute {
+    name = "status"
+    type = "S"
   }
 
-  global_secondary_index {
-    name            = "Source-index"
-    hash_key        = "Source"  # Index for Source
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+  attribute {
+    name = "error_code"
+    type = "S"
   }
 
-  global_secondary_index {
-    name            = "Status-index"
-    hash_key        = "Status"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+  attribute {
+    name = "gateway_response"
+    type = "S"
+  }
+
+  attribute {
+    name = "response_details"
+    type = "S"
   }
 
   global_secondary_index {
-    name            = "Timestamp-index"
-    hash_key        = "Timestamp"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "payment_processor-index"
+    hash_key           = "payment_processor"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "OriginalTransactionID-index"
-    hash_key        = "OriginalTransactionID"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "merchant_id-index"
+    hash_key           = "merchant_id"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "Reason-index"
-    hash_key        = "Reason"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "status-index"
+    hash_key           = "status"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "error_code-index"
+    hash_key           = "error_code"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "gateway_response-index"
+    hash_key           = "gateway_response"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
+  }
+
+  global_secondary_index {
+    name               = "response_details-index"
+    hash_key           = "response_details"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   tags = {
-    Name = "${var.dynamodb_table_name}-ledger"
+    Name = "${var.dynamodb_table_name}-Ledger"
   }
 }
+
+
+# payment_audit_trail
+
 resource "aws_dynamodb_table" "payment_audit_trail" {
   name           = "${var.dynamodb_table_name}-AuditTrail"
-  billing_mode   = "PROVISIONED"
-  read_capacity  = 5
-  write_capacity = 5
-
-  # Enable Point-in-Time Recovery (PITR)
-  point_in_time_recovery {
-    enabled = true
-  }
-
-  hash_key = "AuditID"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "audit_id"
+  range_key      = "transaction_id"
 
   attribute {
-    name = "AuditID"
+    name = "audit_id"
     type = "S"
   }
 
   attribute {
-    name = "TransactionID"
+    name = "transaction_id"
     type = "S"
   }
 
   attribute {
-    name = "Action"
+    name = "timestamp"
     type = "S"
   }
 
   attribute {
-    name = "Actor"
+    name = "action_type"
     type = "S"
   }
 
   attribute {
-    name = "Timestamp"
+    name = "user_id"
     type = "S"
   }
 
   attribute {
-    name = "QueryDetails"
+    name = "source_ip"
     type = "S"
   }
 
   attribute {
-    name = "Response"
+    name = "action_details"
     type = "S"
   }
 
   attribute {
-    name = "VoidTransactionID"
-    type = "S" # Index this attribute if you need to query by it
+    name = "payment_result"
+    type = "S"
   }
 
   attribute {
-    name = "Reason"
-    type = "S" # Index this attribute if you need to query by it
-  }
-
-  attribute {
-    name = "Source"
-    type = "S"  # Added Source attribute
-  }
-
-  # Global Secondary Indexes (GSI)
-  global_secondary_index {
-    name            = "TransactionID-Index"
-    hash_key        = "TransactionID"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name = "error_code"
+    type = "S"
   }
 
   global_secondary_index {
-    name            = "Action-Index"
-    hash_key        = "Action"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "transaction_id-index"
+    hash_key           = "transaction_id"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "Timestamp-Index"
-    hash_key        = "Timestamp"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "user_id-index"
+    hash_key           = "user_id"
+    range_key          = "action_type"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "Actor-Index"
-    hash_key        = "Actor"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "action_details-index"
+    hash_key           = "action_details"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "QueryDetails-Index"
-    hash_key        = "QueryDetails"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "error_code-index"
+    hash_key           = "error_code"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "Response-Index"
-    hash_key        = "Response"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "payment_result-index"
+    hash_key           = "payment_result"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   global_secondary_index {
-    name            = "VoidTransactionID-Index"
-    hash_key        = "VoidTransactionID"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
-  }
-
-  global_secondary_index {
-    name            = "Reason-Index"
-    hash_key        = "Reason"
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
-  }
-
-  global_secondary_index {
-    name            = "Source-Index"
-    hash_key        = "Source"  # Index for Source
-    projection_type = "ALL"
-    read_capacity   = 5
-    write_capacity  = 5
+    name               = "source_ip-index"
+    hash_key           = "source_ip"
+    range_key          = "timestamp"
+    projection_type    = "ALL"
   }
 
   tags = {
-    Name = "${var.dynamodb_table_name}-audit-trail"
+    Name = "${var.dynamodb_table_name}-AuditTrail"
   }
 }

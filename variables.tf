@@ -15,3 +15,15 @@ variable "s3_backup_bucket_name" {
   type        = string
   description = "Name of the S3 bucket for DynamoDB backup"
 }
+
+# elavon_api_url
+variable "elavon_api_url" {
+  type        = string
+  description = "Elavon API URL"
+}
+
+# elavon_api
+variable "elavon_api_auth_token" {
+  type        = string
+  description = "Elavon API Key"
+}
