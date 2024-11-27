@@ -16,14 +16,14 @@ variable "s3_backup_bucket_name" {
   description = "Name of the S3 bucket for DynamoDB backup"
 }
 
-# paynuity_api_url
-variable "paynuity_api_url" {
+# payroc_api_url
+variable "payroc_api_url" {
   type        = string
-  description = "Paynuity API URL"
+  description = "payroc_ API URL"
 }
 
-# paynuity_api_key
-variable "paynuity_api_key" {
+# payroc_auth_token
+variable "payroc_auth_token" {
   type        = string
-  description = "Paynuity API Key"
+  description = "payroc_ AUTH TOKEN"
 }

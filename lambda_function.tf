@@ -11,8 +11,8 @@ resource "aws_lambda_function" "paymentledgeraudittrail" {
       DYNAMODB_LEDGER_TABLE_NAME = aws_dynamodb_table.payment_ledger.name
       DYNAMODB_AUDIT_TABLE_NAME  = aws_dynamodb_table.payment_audit_trail.name
       KMS_KEY_ARN          = aws_kms_alias.ledger_audit_key_alias.arn
-      PROCESSOR_URL              = var.paynuity_api_url
-      API_KEY                    = var.paynuity_api_key
+      PAYROC_API_URL              = var.payroc_api_url
+      PAYROC_AUTH_TOKEN                    = var.payroc_auth_token
     }
   }
 
