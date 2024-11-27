@@ -17,13 +17,13 @@ variable "s3_backup_bucket_name" {
 }
 
 # elavon_api_url
-variable "elavon_api_url" {
+variable "paynuity_api_url" {
   type        = string
-  description = "Elavon API URL"
+  description = "Paynuity API URL"
 }
 
 # elavon_api
-variable "elavon_api_auth_token" {
+variable "paynuity_api_key" {
   type        = string
-  description = "Elavon API Key"
+  description = "Paynuity API Key"
 }

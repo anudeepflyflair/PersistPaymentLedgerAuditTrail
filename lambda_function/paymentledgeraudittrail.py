@@ -1,185 +1,185 @@
-
-import boto3
 import os
 import uuid
+import boto3
 import json
 from datetime import datetime, timezone
 from decimal import Decimal
-import logging
 import requests
+import logging
 
-# Setup logging
+# Initialize logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
-# Retrieve environment variables
-DYNAMODB_LEDGER_TABLE_NAME = os.getenv('DYNAMODB_LEDGER_TABLE_NAME')
-DYNAMODB_AUDIT_TABLE_NAME = os.getenv('DYNAMODB_AUDIT_TABLE_NAME')
-KMS_KEY_ARN = os.getenv('KMS_KEY_ARN')
-ELAVON_API_URL = os.getenv('ELAVON_API_URL')  # The Elavon API endpoint
-ELAVON_API_AUTH_TOKEN = os.getenv('ELAVON_API_AUTH_TOKEN')  # The Elavon API key
+# Initialize DynamoDB
+dynamodb = boto3.resource("dynamodb")
 
-# Initialize AWS services
-dynamodb = boto3.resource('dynamodb')
-kms_client = boto3.client('kms')
+# Retrieve table names from environment variables with error handling
+PAYMENT_LEDGER_TABLE = os.getenv("DYNAMODB_LEDGER_TABLE_NAME")
+AUDIT_TRAIL_TABLE = os.getenv("DYNAMODB_AUDIT_TABLE_NAME")
+PROCESSOR_URL = os.getenv("PROCESSOR_URL")
+API_KEY = os.getenv("API_KEY")
 
-# Connect to DynamoDB tables
-payment_ledger_table = dynamodb.Table(DYNAMODB_LEDGER_TABLE_NAME)
-audit_table = dynamodb.Table(DYNAMODB_AUDIT_TABLE_NAME)
+# Check if the environment variables are set
+if not PAYMENT_LEDGER_TABLE or not AUDIT_TRAIL_TABLE or not PROCESSOR_URL or not API_KEY:
+    logger.error("Required environment variables are missing")
+    raise ValueError("Environment variables are not set correctly")
 
-# Helper Function: Encrypt SecureToken using KMS
-def encrypt_token(token):
+# Initialize tables dynamically
+payment_ledger_table = dynamodb.Table(PAYMENT_LEDGER_TABLE)
+audit_table = dynamodb.Table(AUDIT_TRAIL_TABLE)
+
+# Step 1: Create Ledger Entry
+def create_ledger_entry(transaction_id, process_type, status, details=None):
     try:
-        response = kms_client.encrypt(
-            KeyId=KMS_KEY_ARN,
-            Plaintext=token.encode('utf-8')
-        )
-        return response['CiphertextBlob']
-    except ClientError as e:
-        logger.error(f"Error encrypting token: {e.response['Error']['Message']}")
-        raise Exception(f"Error encrypting token: {e.response['Error']['Message']}")
-
-# Step 1: Persist Payment Ledger Entry
-def persist_payment_ledger(amount, processor_id, source, transaction_type):
-    transaction_id = str(uuid.uuid4())
-    status = "Initiated"
-    try:
+        # Ensure that response_details is always a string (JSON string)
+        response_details_str = json.dumps(details) if details else "{}"
+        
         payment_ledger_table.put_item(
             Item={
-                'TransactionID': transaction_id,
-                'Amount': amount,
-                'ProcessorID': processor_id,
-                'Status': status,
-                'Source': source,  # Include source in the ledger entry
-                'TransactionType': transaction_type,  # Store the transaction type
-                'Timestamp': str(datetime.utcnow())
+                "transaction_id": transaction_id,
+                "process_type": process_type,
+                "status": status,
+                "timestamp": str(datetime.now(timezone.utc)),
+                "response_details": response_details_str,  # Pass as string (JSON format)
             }
         )
-        logger.info(f"Payment ledger entry created for transaction {transaction_id} from source {source} of type {transaction_type}")
-        return transaction_id
-    except ClientError as e:
-        logger.error(f"Error storing payment initiation: {e.response['Error']['Message']}")
-        raise Exception(f"Error storing payment initiation: {e.response['Error']['Message']}")
-
-# Step 2: Create Payment Intent with Elavon
-def create_payment_intent(amount, processor_id, currency="USD"):
-    payload = {
-        "amount": str(amount),
-        "currency": currency,
-        "processor_id": processor_id
-    }
-    headers = {
-        "Authorization": f"Bearer {ELAVON_API_AUTH_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    
-    try:
-        # Send POST request to Elavon API to create a payment intent
-        response = requests.post(f"{ELAVON_API_URL}/v1/payment-intent", json=payload, headers=headers)
-        response.raise_for_status()  # Will raise an error for invalid responses
-        response_data = response.json()
-        logger.info(f"Payment intent created: {response_data}")
-        return response_data
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Error creating payment intent with Elavon: {str(e)}")
-        raise Exception(f"Error creating payment intent with Elavon: {str(e)}")
-
-# Step 3: Update Payment Status (Success/Failure)
-def update_payment_status(transaction_id, status):
-    try:
-        payment_ledger_table.update_item(
-            Key={'TransactionID': transaction_id},
-            UpdateExpression="set #status = :status",
-            ExpressionAttributeNames={'#status': 'Status'},
-            ExpressionAttributeValues={':status': status},
-            ReturnValues="UPDATED_NEW"
-        )
-        logger.info(f"Payment status updated for transaction {transaction_id} to {status}")
-    except ClientError as e:
-        logger.error(f"Error updating payment status: {e.response['Error']['Message']}")
-        raise Exception(f"Error updating payment status: {e.response['Error']['Message']}")
-
-# Step 4: Process Payment Success Response
-def process_payment_success(transaction_id, processor_response, source, transaction_type):
-    status = processor_response.get('status', '').lower()
-    
-    try:
-        if status == 'success':
-            update_payment_status(transaction_id, "Success")
-            logger.info(f"Payment successful for transaction {transaction_id}")
-            if transaction_type == "Refund":
-                logger.info(f"Refund processed successfully for transaction {transaction_id}")
-            return {
-                'statusCode': 200,
-                'body': f"Payment succeeded for transaction {transaction_id}"
-            }
-        elif status == 'failed':
-            update_payment_status(transaction_id, "Failed")
-            logger.error(f"Payment failed for transaction {transaction_id}")
-            return {
-                'statusCode': 400,
-                'body': f"Payment failed for transaction {transaction_id}"
-            }
-        else:
-            update_payment_status(transaction_id, "Pending")
-            logger.info(f"Payment is pending for transaction {transaction_id}")
-            return {
-                'statusCode': 202,
-                'body': f"Payment is pending for transaction {transaction_id}"
-            }
     except Exception as e:
-        logger.error(f"Error processing payment success: {str(e)}")
-        raise Exception(f"Error processing payment success: {str(e)}")
+        logger.error(f"Error creating ledger entry for {transaction_id}: {str(e)}")
+        raise Exception(f"Error creating ledger entry: {str(e)}")
 
-# Step 5: Persist Payment Audit Trail
-def persist_payment_audit_trail(transaction_id, query_details, response_data, source):
+# Step 2: Get Security Token from Payment Processor
+def get_security_token():
     try:
-        audit_id = str(uuid.uuid4())
+        headers = {"Authorization": f"Bearer {API_KEY}"}
+        logger.info(f"Requesting security token from {PROCESSOR_URL}/security-token")
+        
+        response = requests.post(f"{PROCESSOR_URL}/security-token", headers=headers)
+        
+        # Log the raw response details for debugging
+        logger.info(f"Response Status Code: {response.status_code}")
+        logger.info(f"Response Headers: {response.headers}")
+        logger.info(f"Response Body: {response.text}")
+        
+        # Check if the response status code is 200 (OK)
+        if response.status_code != 200:
+            logger.error(f"Failed to get security token. Status code: {response.status_code}")
+            logger.error(f"Response: {response.text}")
+            raise Exception(f"Error generating security token: {response.status_code} {response.text}")
+        
+        # Check if response is valid JSON
+        try:
+            return response.json()["token"]
+        except json.JSONDecodeError:
+            logger.error(f"Invalid JSON response received: {response.text}")
+            raise Exception("Error generating security token: Invalid JSON response")
+    
+    except Exception as e:
+        logger.error(f"Error generating security token: {str(e)}")
+        raise Exception(f"Error generating security token: {str(e)}")
+
+# Step 3: Update Ledger for Payment Pending
+def update_ledger_status(transaction_id, status, details=None):
+    try:
+        # Ensure that response_details is always a string (JSON string)
+        response_details_str = json.dumps(details) if details else "{}"
+        
+        payment_ledger_table.update_item(
+            Key={"transaction_id": transaction_id},
+            UpdateExpression="SET #st = :s, response_details = :rd",
+            ExpressionAttributeNames={"#st": "status"},
+            ExpressionAttributeValues={
+                ":s": status,
+                ":rd": response_details_str,  # Pass as string (JSON format)
+            },
+        )
+    except Exception as e:
+        logger.error(f"Error updating ledger entry for {transaction_id}: {str(e)}")
+        raise Exception(f"Error updating ledger entry: {str(e)}")
+
+# Step 4: Process Payment Intent
+def process_payment_intent(transaction_id, amount, token):
+    try:
+        payload = {"transaction_id": transaction_id, "amount": str(amount), "token": token}
+        response = requests.post(f"{PROCESSOR_URL}/payment-intent", json=payload)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error processing payment intent for {transaction_id}: {str(e)}")
+        raise Exception(f"Error processing payment intent: {str(e)}")
+
+# Step 5: Log Payment Success in Ledger
+def log_payment_success(transaction_id, details):
+    update_ledger_status(transaction_id, "PAYMENT-SUCCESS", details)
+
+# Step 6: Create Audit Entry for Successful Payment
+def create_audit_entry(transaction_id, action_type, details):
+    try:
         audit_table.put_item(
             Item={
-                'AuditID': audit_id,
-                'TransactionID': transaction_id,
-                'QueryDetails': query_details,
-                'ResponseData': response_data,
-                'Source': source,  # Include source in the audit trail
-                'Timestamp': str(datetime.now(timezone.utc))
+                "audit_id": str(uuid.uuid4()),
+                "transaction_id": transaction_id,
+                "action_type": action_type,
+                "timestamp": str(datetime.now(timezone.utc)),
+                "action_details": details,
             }
         )
-        logger.info(f"Audit trail created for transaction {transaction_id} from source {source}")
-    except ClientError as e:
-        logger.error(f"Error creating audit trail: {e.response['Error']['Message']}")
-        raise Exception(f"Error creating audit trail: {e.response['Error']['Message']}")
+    except Exception as e:
+        logger.error(f"Error creating audit entry for {transaction_id}: {str(e)}")
+        raise Exception(f"Error creating audit entry: {str(e)}")
 
-# Lambda Handler Function
+# Step 7: Normalize Processor Response
+def normalize_response(response):
+    return {
+        "status": response.get("status", "unknown"),
+        "message": response.get("message", "No message provided"),
+        "transaction_id": response.get("transaction_id"),
+    }
+
+# Step 8: Return Success Response to API Gateway
 def lambda_handler(event, context):
     try:
-        # Extract and validate input
-        amount = Decimal(str(event['amount']))
-        processor_id = event['processor_id']
-        source = event.get('source', 'unknown')  # Capture source from event, default to 'unknown'
-        transaction_type = event.get('transaction_type', 'Sale')  # Default to 'Sale' if not specified
-        simulate_status = event.get('simulate_status', '').lower()
+        # Extract input data
+        transaction_id = str(uuid.uuid4())
+        process_type = event["process_type"]
+        amount = Decimal(str(event["amount"]))
 
-        # Step 1: Persist the payment ledger entry
-        transaction_id = persist_payment_ledger(amount, processor_id, source, transaction_type)
+        logger.info(f"Processing transaction: {transaction_id}, amount: {amount}, process_type: {process_type}")
 
-        # Step 2: Create Payment Intent with Elavon
-        payment_intent_response = create_payment_intent(amount, processor_id)
+        # Step 1: Create Ledger Entry for Payment Initiation
+        create_ledger_entry(transaction_id, process_type, "PAYMENT-INITIATED")
 
-        # Step 3: Simulate the processor response (In a real scenario, this would be a callback or webhook from Elavon)
-        processor_response = {
-            'status': simulate_status,
-            'transaction_id': transaction_id,
-            'amount': amount,
-            'processor_id': processor_id
-        }
+        # Step 2: Generate Security Token
+        token = get_security_token()
 
-        # Step 4: Process the simulated payment success response
-        return process_payment_success(transaction_id, processor_response, source, transaction_type)
+        # Step 3: Create Ledger Entry for Payment Pending
+        update_ledger_status(transaction_id, "PAYMENT-PENDING", {"token": token})
+
+        # Step 4: Process Payment Intent
+        processor_response = process_payment_intent(transaction_id, amount, token)
+
+        # Step 5: Log Payment Success
+        if processor_response["status"].lower() == "success":
+            normalized_response = normalize_response(processor_response)
+            log_payment_success(transaction_id, normalized_response)
+
+            # Step 6: Create Audit Entry
+            create_audit_entry(transaction_id, "PAYMENT-SUCCESS", normalized_response)
+
+            # Step 8: Return Success Response
+            return {
+                "statusCode": 200,
+                "body": json.dumps({"transaction_id": transaction_id, "status": "success"}),
+            }
+
+        else:
+            logger.error(f"Payment failed for transaction {transaction_id}: {processor_response}")
+            raise Exception(f"Payment failed: {processor_response}")
 
     except Exception as e:
-        logger.error(f"Error in payment processing flow: {str(e)}")
+        # Log errors
+        logger.error(f"Error processing transaction: {str(e)}")
         return {
-            'statusCode': 500,
-            'body': f"Error in payment processing flow: {str(e)}"
+            "statusCode": 500,
+            "body": json.dumps({"error": str(e)}),
         }
