@@ -2,7 +2,7 @@ resource "aws_lambda_function" "paymentledgeraudittrail" {
   function_name    = "${var.dynamodb_table_name}-ledgeraudittrail"
   role             = aws_iam_role.paymentaudittrail_role.arn
   handler          = "paymentledgeraudittrail.lambda_handler"
-  runtime          = "python3.8"
+  runtime          = "python3.9"
   filename         = "lambda_function/paymentledgeraudittrail.zip"
   source_code_hash = filebase64sha256("lambda_function/paymentledgeraudittrail.zip")
 
