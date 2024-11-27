@@ -16,13 +16,13 @@ variable "s3_backup_bucket_name" {
   description = "Name of the S3 bucket for DynamoDB backup"
 }
 
-# elavon_api_url
+# paynuity_api_url
 variable "paynuity_api_url" {
   type        = string
   description = "Paynuity API URL"
 }
 
-# elavon_api
+# paynuity_api_key
 variable "paynuity_api_key" {
   type        = string
   description = "Paynuity API Key"
