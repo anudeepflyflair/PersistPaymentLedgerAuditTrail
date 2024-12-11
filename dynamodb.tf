@@ -60,6 +60,11 @@ resource "aws_dynamodb_table" "payment_ledger" {
     type = "S"
   }
 
+  attribute {
+    name = "PNR"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "payment_processor-index"
     hash_key        = "payment_processor"
@@ -112,6 +117,13 @@ resource "aws_dynamodb_table" "payment_ledger" {
   global_secondary_index {
     name            = "card_type-index"
     hash_key        = "card_type"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "PNR-index"
+    hash_key        = "PNR"
     range_key       = "timestamp"
     projection_type = "ALL"
   }
@@ -177,6 +189,11 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
     type = "S"
   }
 
+  attribute {
+    name = "PNR"
+    type = "S"
+  }
+
   global_secondary_index {
     name            = "transaction_id-index"
     hash_key        = "transaction_id"
@@ -215,6 +232,13 @@ resource "aws_dynamodb_table" "payment_audit_trail" {
   global_secondary_index {
     name            = "source_ip-index"
     hash_key        = "source_ip"
+    range_key       = "timestamp"
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name            = "PNR-index"
+    hash_key        = "PNR"
     range_key       = "timestamp"
     projection_type = "ALL"
   }
